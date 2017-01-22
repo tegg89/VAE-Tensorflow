@@ -5,13 +5,14 @@ import os
 import numpy as np
 import tensorflow as tf
 
+
 class VAE(object):
 
   def __init__(self, 
-    sess,
-    input_data=None,
-    batch_size=100,
-    checkpoint_dir=None):
+               sess,
+               input_data=None,
+               batch_size=100,
+               checkpoint_dir=None):
 
     self.sess = sess
     self.input_data = input_data
@@ -24,7 +25,7 @@ class VAE(object):
     self.x = tf.placeholder(tf.float32, shape=[None, 784])
 
     self.weights = {
-      'enc_w1': tf.Variable(tf.random_normal([FLAGS.input_dim, 1000], stddev=.1), name='enc_w1'),
+      'enc_w1': tf.Variable(tf.random_normal([784, 1000], stddev=.1), name='enc_w1'),
       'enc_w2': tf.Variable(tf.random_normal([1000, 500], stddev=.1), name='enc_w2'),
       'enc_w3': tf.Variable(tf.random_normal([500, 250], stddev=.1), name='enc_w3'),
       'mu_w' : tf.Variable(tf.random_normal([250, 30], stddev=.1), name='mu_w'),
@@ -32,7 +33,7 @@ class VAE(object):
       'dec_w1': tf.Variable(tf.random_normal([30, 250], stddev=.1), name='dec_w1'),
       'dec_w2': tf.Variable(tf.random_normal([250, 500], stddev=.1), name='dec_w2'),
       'dec_w3': tf.Variable(tf.random_normal([500, 1000], stddev=.1), name='dec_w3'),
-      'dec_w4': tf.Variable(tf.random_normal([1000, FLAGS.input_dim], stddev=.1), name='dec_w4')
+      'dec_w4': tf.Variable(tf.random_normal([1000, 784], stddev=.1), name='dec_w4')
     }
 
     self.biases = {
@@ -44,7 +45,7 @@ class VAE(object):
       'dec_b1': tf.Variable(tf.zeros([250]), name='dec_b1'),
       'dec_b2': tf.Variable(tf.zeros([500]), name='dec_b2'),
       'dec_b3': tf.Variable(tf.zeros([1000]), name='dec_b3'),
-      'dec_b4': tf.Variable(tf.zeros([FLAGS.input_dim]), name='dec_b4')
+      'dec_b4': tf.Variable(tf.zeros([784]), name='dec_b4')
     }
 
     self.pred, self.loss = self.model()
@@ -74,10 +75,11 @@ class VAE(object):
     # Sample latent variable
     std_encoder = tf.exp(.5 * enc_logsd) # [?, 30]    
 
-    # Compute KL divergence
-    KLD = -.5 * tf.reduce_sum(.5 * enc_logsd + .5 * tf.pow(enc_mu, 2) - tf.exp(enc_logsd), reduction_indices=1)
+    # Compute KL divergence (latent loss)
+    KLD = -.5 * tf.reduce_sum(1. + enc_logsd - tf.pow(enc_mu, 2) - tf.exp(enc_logsd), reduction_indices=1)
 
     # Generate z
+    # z = mu + (sigma * epsilon)
     z = enc_mu + tf.mul(std_encoder, epsilon)
 
     # Hidden layer decoder
@@ -90,12 +92,11 @@ class VAE(object):
     with tf.variable_scope("dec4"):
       x_hat = tf.matmul(dec3, self.weights['dec_w4']) + self.biases['dec_b4']
 
-    # Compute binary cross entropy
-    BCE = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(x_hat, x), reduction_indices=1)
+    # Compute binary cross entropy (recontruction loss)
+    BCE = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(x_hat, self.x), reduction_indices=1)
 
     # Compute loss
-    #     loss = tf.nn.l2_loss(tf.sigmoid(weights['dec_w4']))
-    loss = tf.reduce_mean(BCE)
+    loss = tf.reduce_mean(KLD + BCE)
 
     #     # Compute regularized loss
     #     regularized_loss = loss + FLAGS.lam * l2_loss
@@ -103,11 +104,9 @@ class VAE(object):
     return x_hat, loss
 
   def train(self, config):
-    self.input_data
-
     self.train_op = tf.train.AdamOptimizer(config.learning_rate).minimize(self.loss)
 
-    tf.global_variables.initializer().run()
+    tf.initialize_all_variables().run()
 
     counter = 0
     start_time = time.time()
@@ -130,17 +129,26 @@ class VAE(object):
           print("Epoch: [%2d], step: [%2d], time: [%4.4f], loss: [%.8f]" \
             % ((ep+1), counter, time.time()-start_time, err))
 
-        if counter % 500 == 0:
+        if (ep + 1) % 10 == 0 and counter % 9990 == 0:
           self.save(config.checkpoint_dir, counter)
+          result = self.sess.run(self.pred, feed_dict={self.x: batch[0]})
+          test_img = np.reshape(result[0], (28, 28))
+          image_model = "{}_{}.png".format("test_img", counter)
+          scipy.misc.imsave(os.path.join(os.getcwd(), image_model), test_img)
 
-  def save(self, sess, checkpoint_dir, step):
+  def save(self, checkpoint_dir, step):
     model_name = "vae.model"
     model_dir = "{}".format("vae")
     checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
+    
+    if not os.path.exists(checkpoint_dir):
+      os.makedirs(checkpoint_dir)
 
-    saver.save(sess, os.path.join(checkpoint_dir, model_name), global_step=step)
+    self.saver.save(self.sess, 
+                    os.path.join(checkpoint_dir, model_name), 
+                    global_step=step)
 
-  def load(self, sess, checkpoint_dir):
+  def load(self, checkpoint_dir):
     print(" [*] Reading checkpoints...")
     model_dir = "{}".format("vae")
     checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
@@ -148,7 +156,7 @@ class VAE(object):
     ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
     if ckpt and ckpt.model_checkpoint_path:
       ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
-      saver.restore(sess, os.path.join(checkpoint_dir, ckpt_name))
+      self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))
       return True
     else:
       return False

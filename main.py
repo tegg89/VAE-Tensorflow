@@ -8,8 +8,8 @@ import pprint
 import os
 
 flags = tf.app.flags
-flags.DEFINE_integer("epoch", 50, "Number of epochs [50]")
-flags.DEFINE_integer("training_step", 1000, "Number of training steps [1000]")
+flags.DEFINE_integer("epoch", 100, "Number of epochs [100]")
+flags.DEFINE_integer("training_step", 10000, "Number of training steps [10000]")
 flags.DEFINE_integer("batch_size", 100, "The size of batch sizes [100]")
 flags.DEFINE_float("learning_rate", 3e-4, "The learning rate of optimizing algorithm [0.0003]")
 flags.DEFINE_integer("lam", .01, "Lambda regularizer [0.01]")
@@ -27,7 +27,10 @@ def main(_):
   mnist = input_data.read_data_sets('MNIST')
 
   with tf.Session() as sess:
-    vae = VAE(sess, input_data=mnist, batch_size=FLAGS.batch_size, checkpoint_dir=FLAGS.checkpoint_dir)
+    vae = VAE(sess, 
+              input_data=mnist, 
+              batch_size=FLAGS.batch_size, 
+              checkpoint_dir=FLAGS.checkpoint_dir)
   
     vae.train(FLAGS)
 
