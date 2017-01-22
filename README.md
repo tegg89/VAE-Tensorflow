@@ -1,5 +1,3 @@
-(ongoing process)
-
 # VAE-Tensorflow
 Implemented variational auto-encoder with MNIST dataset using TensorFlow.
 
@@ -9,6 +7,7 @@ Implemented variational auto-encoder with MNIST dataset using TensorFlow.
 
 ## Usage
 `python main.py`
+Training process is activated, as parameters would be saved as checkpoint file. After every 10 epochs, generated MNIST number will be saved as png file.
 
 ## References
 * [y0ast/VAE-TensorFlow](https://github.com/y0ast/VAE-TensorFlow)
